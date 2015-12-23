@@ -1,0 +1,7 @@
+<!--  Standalone launcher  -->
+<launch>
+  <arg name="fcu_url" default="/dev/ttyUSB0:57600"/>
+ <!-- <node pkg="mavctr" type="mavctr_node" name="mavctr" output="screen"/> -->
+    <node pkg="joy" type="joy_node" name="joy" output="screen"/>
+</launch>
+
