@@ -8,7 +8,7 @@ int main(int argc, char **argv)
 
 	ImageConverter ic;
 
-	ros::spin();
+	ic.loop();
 
 	return 0;
 }

@@ -23,6 +23,9 @@ uint64_t get_time_usec()
 ImageConverter::ImageConverter()
   : it_(nh_)
 {
+	_imu = new IMU;
+	_serial_port = new Serial_Port;
+	_serial_port->start();
   // Subscrive to input video feed and publish output video feed
   image_sub_ = it_.subscribe("/camera/rgb/image_raw", 1,
     &ImageConverter::imageCb, this);
@@ -50,6 +53,7 @@ ImageConverter::ImageConverter()
 }
 ImageConverter::~ImageConverter()
 {
+	_serial_port->stop();
   cv::destroyWindow(OPENCV_WINDOW);
   cv::destroyWindow(OPENCV_DEPTH_WINDOW);
 }
@@ -134,6 +138,15 @@ void ImageConverter::getkey()
 			sprintf(name_path,"../data/depth%d.png",save_count);
 			cv::imwrite( name_path, cv_depth_ptr->image );
 
+		}
+	}
+}
+void ImageConverter::loop(){
+	while(1){
+		if(_serial_port->read_port(ch)<=0)
+			printf("Serial port get data error\n");
+		if (_imu->rev_process(ch)) {
+			printf("roll:%ld\n",_imu.imu_data.roll);
 		}
 	}
 }

@@ -22,9 +22,9 @@
 #define SIZE 640*480
 #define CALI_NUM 5
 
-
+#include "imu.h"
 #include "slamBase.h"
-
+#include "serial_port.h"
 // ------------------------------------------------------------------------------
 //   Defines
 // ------------------------------------------------------------------------------
@@ -50,6 +50,10 @@ public:
   image_transport::Publisher image_pub_,depth_image_pub_;
   ros::Subscriber drone_pose;
 
+  IMU * _imu;
+  Serial_Port * _serial_port;
+  unsigned char ch;
+
   ImageConverter();
   ~ImageConverter();
   void poseCb(const geometry_msgs::PoseStampedPtr& msg);
@@ -57,7 +61,8 @@ public:
   void depth_imageCb(const sensor_msgs::ImageConstPtr& msg);
   void getkey();
   void process();
-
+  void loop();
+  
   int save_count;
   pthread_t read_tid;
   FRAME frame[CALI_NUM];
