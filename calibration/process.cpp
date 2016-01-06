@@ -33,6 +33,8 @@ ImageConverter::ImageConverter()
 		    &ImageConverter::depth_imageCb, this);
   image_pub_ = it_.advertise("/image_converter/output_video", 1);
   depth_image_pub_ = it_.advertise("/image_converter/output_depth_video", 1);
+  imu_pose_pub_ = nh_.advertise<geometry_msgs::Pose>("/image_converter/imu_pose",1);
+  //const geometry_msgs::PoseStampedPtr& msg
   drone_pose = nh_.subscribe("/mavros/local_position/pose",1,&ImageConverter::poseCb,this);
 
   cv::namedWindow(OPENCV_WINDOW);
@@ -50,6 +52,7 @@ ImageConverter::ImageConverter()
   	tcsetattr(kfd, TCSANOW, &raw);
 
   	pthread_create(&read_tid, NULL, &thread_start,this);
+  	pthread_create(&read_imu, NULL, &imu_loop,this);
 }
 ImageConverter::~ImageConverter()
 {
@@ -102,15 +105,14 @@ void ImageConverter::imageCb(const sensor_msgs::ImageConstPtr& msg)
 
   // Output modified video stream
   image_pub_.publish(cv_ptr->toImageMsg());
-}
-void* thread_start(void *arg)
-{
-	ImageConverter *ic_ = (ImageConverter *)arg;
 
-	ic_->getkey();
-	ic_->process();
+  pose.orientation.w = _imu->q.w();
+  pose.orientation.x = _imu->q.x();
+  pose.orientation.y = _imu->q.y();
+  pose.orientation.z = _imu->q.z();
 
-	ros::shutdown();
+  imu_pose_pub_.publish(&pose);
+
 }
 void ImageConverter::getkey()
 {
@@ -125,7 +127,7 @@ void ImageConverter::getkey()
 			frame[save_count].rgb = cv_ptr->image;
 			frame[save_count].depth = cv_depth_ptr->image;
 			frame[save_count].frameID = save_count;
-			Eigen::Quaternion<double> tmp(orientation.w,orientation.x,orientation.y,orientation.z);
+			Eigen::Quaternion<double> tmp=_imu->q;
 			cali_mat[save_count] = tmp.matrix();
 			save_count++;
 
@@ -138,15 +140,6 @@ void ImageConverter::getkey()
 			sprintf(name_path,"../data/depth%d.png",save_count);
 			cv::imwrite( name_path, cv_depth_ptr->image );
 
-		}
-	}
-}
-void ImageConverter::loop(){
-	while(1){
-		if(_serial_port->read_port(ch)<=0)
-			printf("Serial port get data error\n");
-		if (_imu->rev_process(ch)) {
-			printf("roll:%ld\n",_imu.imu_data.roll);
 		}
 	}
 }
@@ -247,16 +240,27 @@ Eigen::Vector3d ImageConverter::cnb2att(Eigen::Matrix3d trans_mat){
 		att[2] = 3.1415926/2;
 
 	return att;
-	/*
 
-if (cnb(2,2)>0&&(-cnb(2,1))>=0)            kfai = atan((-cnb(2,1))/cnb(2,2));
-elseif (cnb(2,2)>0&&(-cnb(2,1))<=0)            kfai = atan((-cnb(2,1))/cnb(2,2))+2*pi;
-elseif (cnb(2,2)<0&&(-cnb(2,1))>=0)            kfai = atan((-cnb(2,1))/cnb(2,2))+pi;
-elseif (cnb(2,2)<0&&(-cnb(2,1))<=0)            kfai = atan((-cnb(2,1))/cnb(2,2))+pi;
-elseif (cnb(2,2)==0&&(-cnb(2,1))<0)            kfai = 3*pi/2;
-else            kfai = pi/2;
-end
+}
+void* thread_start(void *arg)
+{
+	ImageConverter *ic_ = (ImageConverter *)arg;
+	ic_->getkey();
+	ic_->process();
 
-att=[thita;gama;kfai];
-*/
+	ros::shutdown();
+}
+void* imu_loop(void *arg){
+
+	ImageConverter *ic_ = (ImageConverter *)arg;
+	unsigned char ch;
+
+	while(ros::ok()){
+		if(ic_->_serial_port->read_port(ch)<=0)
+			printf("Serial port get data error\n");
+		if (ic_->_imu->rev_process(ch)) {
+//			printf("roll:%ld\n",_imu->data.roll);
+		}
+	}
+	ros::shutdown();
 }

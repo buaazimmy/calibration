@@ -40,6 +40,7 @@ static const std::string OPENCV_DEPTH_WINDOW = "depth window";
 
 
 void* thread_start(void *arg);
+void* imu_loop(void *arg);
 class ImageConverter
 {
 public:
@@ -48,10 +49,12 @@ public:
   image_transport::Subscriber image_sub_;
   image_transport::Subscriber image_depth_sub_;
   image_transport::Publisher image_pub_,depth_image_pub_;
+  ros::Publisher imu_pose_pub_;
   ros::Subscriber drone_pose;
 
   IMU * _imu;
   Serial_Port * _serial_port;
+  geometry_msgs::Pose pose;
   unsigned char ch;
 
   ImageConverter();
@@ -61,10 +64,9 @@ public:
   void depth_imageCb(const sensor_msgs::ImageConstPtr& msg);
   void getkey();
   void process();
-  void loop();
   
   int save_count;
-  pthread_t read_tid;
+  pthread_t read_tid,read_imu;
   FRAME frame[CALI_NUM];
   Eigen::Matrix3d solve_axxb(Eigen::Matrix3d A, Eigen::Matrix3d B);
   Eigen::Matrix3d solve_two_frame(FRAME frame1, FRAME frame2, Eigen::Matrix3d mat1, Eigen::Matrix3d mat2);
