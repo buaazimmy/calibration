@@ -65,7 +65,7 @@ Eigen::Isometry3d cvMat2Eigen( cv::Mat& rvec, cv::Mat& tvec );
 class ParameterReader
 {
 public:
-    ParameterReader( string filename="../data/parameters.txt" )
+    ParameterReader( string filename=".~/catkin_ws/src/calibration/data/parameters.txt" )
     {
         ifstream fin( filename.c_str() );
         if (!fin)

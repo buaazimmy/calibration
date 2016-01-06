@@ -33,7 +33,7 @@ ImageConverter::ImageConverter()
 		    &ImageConverter::depth_imageCb, this);
   image_pub_ = it_.advertise("/image_converter/output_video", 1);
   depth_image_pub_ = it_.advertise("/image_converter/output_depth_video", 1);
-  imu_pose_pub_ = nh_.advertise<geometry_msgs::Pose>("/image_converter/imu_pose",1);
+//  imu_pose_pub_ = nh_.advertise("/image_converter/imu_pose",1);
   //const geometry_msgs::PoseStampedPtr& msg
   drone_pose = nh_.subscribe("/mavros/local_position/pose",1,&ImageConverter::poseCb,this);
 
@@ -111,7 +111,7 @@ void ImageConverter::imageCb(const sensor_msgs::ImageConstPtr& msg)
   pose.orientation.y = _imu->q.y();
   pose.orientation.z = _imu->q.z();
 
-  imu_pose_pub_.publish(&pose);
+//  imu_pose_pub_.publish(&pose);
 
 }
 void ImageConverter::getkey()
@@ -135,9 +135,9 @@ void ImageConverter::getkey()
 			cout<<"Orientation:"<<endl<<tmp.x()<<"\t"<<tmp.y()<<"\t"<<tmp.z()<<"\t"<<tmp.w()<<"\t"<<endl;
 
 			char name_path[30] = {0};
-			sprintf(name_path,"../data/rgb%d.png",save_count);
+			sprintf(name_path,"~/catkin_ws/src/calibration/data/rgb%d.png",save_count);
 			cv::imwrite( name_path, cv_ptr->image );
-			sprintf(name_path,"../data/depth%d.png",save_count);
+			sprintf(name_path,"~/catkin_ws/src/calibration/data/depth%d.png",save_count);
 			cv::imwrite( name_path, cv_depth_ptr->image );
 
 		}

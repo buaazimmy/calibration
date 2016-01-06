@@ -49,7 +49,7 @@ public:
   image_transport::Subscriber image_sub_;
   image_transport::Subscriber image_depth_sub_;
   image_transport::Publisher image_pub_,depth_image_pub_;
-  ros::Publisher imu_pose_pub_;
+//  ros::Publisher imu_pose_pub_;
   ros::Subscriber drone_pose;
 
   IMU * _imu;
