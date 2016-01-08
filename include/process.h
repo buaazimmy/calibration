@@ -19,6 +19,7 @@
 #include <Eigen/Dense>
 #include <sstream>
 #include <termios.h>
+
 #define SIZE 640*480
 #define CALI_NUM 5
 
@@ -49,13 +50,14 @@ public:
   image_transport::Subscriber image_sub_;
   image_transport::Subscriber image_depth_sub_;
   image_transport::Publisher image_pub_,depth_image_pub_;
-//  ros::Publisher imu_pose_pub_;
+  ros::Publisher imu_pose_pub_;
   ros::Subscriber drone_pose;
 
   IMU * _imu;
   Serial_Port * _serial_port;
   geometry_msgs::Pose pose;
   unsigned char ch;
+  bool recieve_flag_depth,recieve_flag_rgb,first_flag;
 
   ImageConverter();
   ~ImageConverter();
@@ -64,10 +66,11 @@ public:
   void depth_imageCb(const sensor_msgs::ImageConstPtr& msg);
   void getkey();
   void process();
+  void output();
   
   int save_count;
   pthread_t read_tid,read_imu;
-  FRAME frame[CALI_NUM];
+  FRAME frame[CALI_NUM],frame_new,frame_pre;
   Eigen::Matrix3d solve_axxb(Eigen::Matrix3d A, Eigen::Matrix3d B);
   Eigen::Matrix3d solve_two_frame(FRAME frame1, FRAME frame2, Eigen::Matrix3d mat1, Eigen::Matrix3d mat2);
   Eigen::Vector3d cnb2att(Eigen::Matrix3d trans_mat);
@@ -76,9 +79,13 @@ private:
 	ParameterReader pd;
 	cv_bridge::CvImagePtr cv_ptr,cv_depth_ptr;
 	Eigen::Quaternion<double> cali_orient[CALI_NUM];
-	Eigen::Matrix3d cali_mat[CALI_NUM];
+	Eigen::Matrix3d cali_mat[CALI_NUM],imu_att;
 	geometry_msgs::Quaternion orientation;
 	CAMERA_INTRINSIC_PARAMETERS camera;
+	string detecter;
+	string descriptor;
+
+
 };
 
 #endif // ROS_COMM_H_

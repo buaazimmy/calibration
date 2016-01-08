@@ -26,33 +26,45 @@ ImageConverter::ImageConverter()
 	_imu = new IMU;
 	_serial_port = new Serial_Port;
 	_serial_port->start();
-  // Subscrive to input video feed and publish output video feed
-  image_sub_ = it_.subscribe("/camera/rgb/image_raw", 1,
-    &ImageConverter::imageCb, this);
-  image_depth_sub_ = it_.subscribe("/camera/depth/image_raw", 1,
-		    &ImageConverter::depth_imageCb, this);
-  image_pub_ = it_.advertise("/image_converter/output_video", 1);
-  depth_image_pub_ = it_.advertise("/image_converter/output_depth_video", 1);
-//  imu_pose_pub_ = nh_.advertise("/image_converter/imu_pose",1);
-  //const geometry_msgs::PoseStampedPtr& msg
-  drone_pose = nh_.subscribe("/mavros/local_position/pose",1,&ImageConverter::poseCb,this);
+	// Subscrive to input video feed and publish output video feed
+	image_sub_ = it_.subscribe("/camera/rgb/image_raw", 1,&ImageConverter::imageCb, this);
+	image_depth_sub_ = it_.subscribe("/camera/depth/image_raw", 1,&ImageConverter::depth_imageCb, this);
+	image_pub_ = it_.advertise("/image_converter/output_video", 1);
+	depth_image_pub_ = it_.advertise("/image_converter/output_depth_video", 1);
+	imu_pose_pub_ = nh_.advertise<geometry_msgs::Pose>("/image_converter/imu_pose",1);
+	drone_pose = nh_.subscribe("/mavros/local_position/pose",1,&ImageConverter::poseCb,this);
 
-  cv::namedWindow(OPENCV_WINDOW);
-  cv::namedWindow(OPENCV_DEPTH_WINDOW);
-  save_count=0;
-  int kfd = 0;
-  bool dirty = false;
-  //get the console in raw mode
-  	tcgetattr(kfd, &cooked);
-  	memcpy(&raw, &cooked, sizeof(struct termios));
-  	raw.c_lflag &=~ (ICANON | ECHO);
-  	// Setting a new line, then end of file
-  	raw.c_cc[VEOL] = 1;
-  	raw.c_cc[VEOF] = 2;
-  	tcsetattr(kfd, TCSANOW, &raw);
+	//parameters init
+	recieve_flag_depth = false;
+	recieve_flag_rgb = false;
+	first_flag = true;
+	save_count = 0;
+	//extracting features
+	detecter = pd.getData( "detector" );
+	descriptor = pd.getData( "descriptor" );
+	// 相机内参
+	camera.fx = atof( pd.getData( "camera.fx" ).c_str());
+	camera.fy = atof( pd.getData( "camera.fy" ).c_str());
+	camera.cx = atof( pd.getData( "camera.cx" ).c_str());
+	camera.cy = atof( pd.getData( "camera.cy" ).c_str());
+	camera.scale = atof( pd.getData( "camera.scale" ).c_str() );
 
-  	pthread_create(&read_tid, NULL, &thread_start,this);
-  	pthread_create(&read_imu, NULL, &imu_loop,this);
+	cv::namedWindow(OPENCV_WINDOW);
+	cv::namedWindow(OPENCV_DEPTH_WINDOW);
+	save_count=0;
+	int kfd = 0;
+	bool dirty = false;
+	//get the console in raw mode
+	tcgetattr(kfd, &cooked);
+	memcpy(&raw, &cooked, sizeof(struct termios));
+	raw.c_lflag &=~ (ICANON | ECHO);
+	// Setting a new line, then end of file
+	raw.c_cc[VEOL] = 1;
+	raw.c_cc[VEOF] = 2;
+	tcsetattr(kfd, TCSANOW, &raw);
+
+	pthread_create(&read_tid, NULL, &thread_start,this);
+	pthread_create(&read_imu, NULL, &imu_loop,this);
 }
 ImageConverter::~ImageConverter()
 {
@@ -86,6 +98,7 @@ void ImageConverter::depth_imageCb(const sensor_msgs::ImageConstPtr& msg)
 
   // Output modified video stream
   depth_image_pub_.publish(cv_depth_ptr->toImageMsg());
+  recieve_flag_depth = true;
 }
 void ImageConverter::imageCb(const sensor_msgs::ImageConstPtr& msg)
 {
@@ -111,11 +124,14 @@ void ImageConverter::imageCb(const sensor_msgs::ImageConstPtr& msg)
   pose.orientation.y = _imu->q.y();
   pose.orientation.z = _imu->q.z();
 
-//  imu_pose_pub_.publish(&pose);
-
+  imu_pose_pub_.publish(pose);
+  recieve_flag_rgb = true;
 }
+
 void ImageConverter::getkey()
 {
+
+
 	while(save_count<CALI_NUM){
 		if(read(kfd, &c, 1) < 0)
 		{
@@ -144,23 +160,8 @@ void ImageConverter::getkey()
 	}
 }
 void ImageConverter::process(){
-	Eigen::Matrix3d *mattest2 = new Eigen::Matrix<double,3,3>;
-Eigen::Matrix3d *mattest = new Eigen::Matrix<double,3,3>;
-///{1,2,3,4,5,6,7,8,9}
-delete mattest;
-	//	cout<<"extracting features"<<endl;
-    string detecter = pd.getData( "detector" );
-    string descriptor = pd.getData( "descriptor" );
-    for(int i=0;i<CALI_NUM;i++)
-    	computeKeyPointsAndDesp( frame[i], detecter, descriptor);
-
-	// 相机内参
-    camera.fx = atof( pd.getData( "camera.fx" ).c_str());
-    camera.fy = atof( pd.getData( "camera.fy" ).c_str());
-    camera.cx = atof( pd.getData( "camera.cx" ).c_str());
-    camera.cy = atof( pd.getData( "camera.cy" ).c_str());
-    camera.scale = atof( pd.getData( "camera.scale" ).c_str() );
-
+	for(int i=0;i<CALI_NUM;i++)
+		computeKeyPointsAndDesp( frame[i], detecter, descriptor);
     int i=0;
     int j=1;
     Eigen::Matrix3d relative_att = solve_two_frame(frame[i],frame[j],cali_mat[i],cali_mat[j]);
@@ -200,7 +201,6 @@ Eigen::Matrix3d ImageConverter::solve_two_frame(FRAME frame1, FRAME frame2, Eige
 
 		Eigen::Matrix3d rotate_mat = mat1 * mat2.inverse();
 	//	cout<<"Rotate_mat:"<<endl<<rotate_mat<<endl;
-		rotate_mat.eigenvalues();
 
 		return solve_axxb(r,rotate_mat);
 }
@@ -242,12 +242,54 @@ Eigen::Vector3d ImageConverter::cnb2att(Eigen::Matrix3d trans_mat){
 	return att;
 
 }
+void ImageConverter::output(){
+
+	while(1){
+		if(recieve_flag_rgb & recieve_flag_depth){
+			recieve_flag_rgb = false;
+			recieve_flag_depth = false;
+			frame_new.rgb = cv_ptr->image;
+			frame_new.depth = cv_depth_ptr->image;
+			frame_new.frameID = save_count;
+			imu_att = _imu->q.matrix();
+			computeKeyPointsAndDesp( frame_new, detecter, descriptor);
+			frame_pre = frame_new;
+			first_flag = false;
+			break;
+		}
+	}
+	while(1){
+		if(recieve_flag_rgb & recieve_flag_depth){
+			recieve_flag_rgb = false;
+			recieve_flag_depth = false;
+			frame_new.rgb = cv_ptr->image;
+			frame_new.depth = cv_depth_ptr->image;
+			frame_new.frameID = save_count;
+			imu_att = _imu->q.matrix();
+
+			computeKeyPointsAndDesp( frame_new, detecter, descriptor);
+
+			RESULT_OF_PNP result = estimateMotion( frame_new, frame_pre, camera );
+			cout<<result.rvec<<endl;
+			 //处理result， 将旋转向量转化为旋转矩阵
+			cv::Mat R;
+			cv::Rodrigues( result.rvec, R );
+			Eigen::Matrix3d r;
+			cv::cv2eigen(R, r);
+			cout<<r<<std::endl;
+
+			save_count++;
+
+			frame_pre = frame_new;
+		}
+	}
+}
 void* thread_start(void *arg)
 {
 	ImageConverter *ic_ = (ImageConverter *)arg;
-	ic_->getkey();
-	ic_->process();
-
+//	ic_->getkey();
+//	ic_->process();
+	ic_->output();
 	ros::shutdown();
 }
 void* imu_loop(void *arg){
